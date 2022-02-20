@@ -14,18 +14,22 @@ def totstr():
         return pre
     
 for line in sys.stdin.readlines():
-    line = line.rstrip('\n').split('\t')
-    line_field = int(line[field]) if line[field].isdigit() else float(line[field])
-    line_head = line[0:field]
-    line_tail = line[field+1:]
-    if line_head != head or line_tail != tail:
-        if total > 0:
-            print '\t'.join(head + [totstr()] + tail)
-        head = line_head
-        tail = line_tail
-        total = line_field
-    else:
-        total += line_field
+    org_line = line
+    try:
+        line = line.rstrip('\n').split('\t')
+        line_field = int(line[field]) if line[field].isdigit() else float(line[field])
+        line_head = line[0:field]
+        line_tail = line[field+1:]
+        if line_head != head or line_tail != tail:
+            if total > 0:
+                print '\t'.join(head + [totstr()] + tail)
+            head = line_head
+            tail = line_tail
+            total = line_field
+        else:
+            total += line_field
+    except BaseException, ex:
+        raise Exception("Error in line:\n"+ org_line + "\n\n" + ex.message)
 if total > 0:
     print '\t'.join(head + [totstr()] + tail)
 
