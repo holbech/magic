@@ -44,10 +44,11 @@ def process_card(ed,card,price):
                         card['identifiers'].get('multiverseId'),
                         '' if is_special else ed,
                         [] if card['types'] == ['Land'] else card['colorIdentity'],
-                        price)
+                        price,
+                        card.get('side'))
         name = standardize(card['name'])
         ids = [card['identifiers'].get('multiverseId'),name] + ([ n.strip() for n in name.split('//') ] if '//' in name else [])
-        return ( (x,data) for x in ids if x )
+        return ( (x,data) for x in ids if x and x != '534948' )
     except Exception, e:
         raise ValueError('Cannot parse card: ' +  str(card) + ":\n" + (e.message or str(e)))
 
@@ -74,11 +75,12 @@ with open(args.prices) as infile:
 
 with open(args.cards) as infile:
     content = json.load(infile)['data']
-    editions = { ed: set['name'] for ed,set in content.iteritems() if set['type'] != 'funny' }
+    editions = { ed: set['name'] for ed,set in content.iteritems() 
+                 if set['type'] != 'funny' and ed not in ('TBTH',) }
     database = list(chain.from_iterable( process_card(ed,card,prices.get(card['uuid']))
                                          for ed,set in content.iteritems() 
                                          for card in set['cards']
-                                         if set['type'] != 'funny' ) )
+                                         if set['type'] != 'funny' and ed not in ('TBTH',) ) )
     database.sort()
     database = { key: reduce(lambda x,y: x + y, ( c for (_,c) in cards )) for key,cards in groupby(database,itemgetter(0)) }   
 

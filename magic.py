@@ -31,22 +31,56 @@ def superset_or_equal(a,b,attribute):
         raise ValueError('%s differs: %s %s\n' % (attribute, str(a), str(b)))
 
 def set2str(thing):
-    return u','.join(sorted( t for t in thing if t)) if isinstance(thing,set) else thing
+    if thing is None:
+        return u''
+    if isinstance(thing,tuple):
+        return u' // '.join( set2str(x) for x in thing if x is not None )
+    if isinstance(thing,(set,list)):
+        return u','.join(sorted( t for t in thing if t)) 
+    return unicode(thing)
+    
+def byside(side,val):
+    if side is None:
+        return val
+    elif side == 'a':
+        return (val,None)
+    elif side == 'b':
+        return (None,val)
+    else:
+        raise ValueError('Odd side: ' + side)
+
+
+def addsides(sides1,sides2):
+    if isinstance(sides1,tuple) and isinstance(sides2,tuple):
+        return tuple( addsides(a,b) for a,b in zip(sides1,sides2) )
+    elif sides1 is None:
+        return sides2
+    elif sides2 is None:
+        return sides1
+    elif sides1 == sides2:
+        return sides1
+    elif isinstance(sides1,tuple) and sides2 in sides1:
+        return sides1
+    elif isinstance(sides2,tuple) and sides1 in sides2:
+        return sides2
+    else:
+        raise ValueError('Cannot combine %s and %s' % (sides1,sides2))
+        
     
 class CardData(object):
     __slots__ = ('name','rarity','colours','types','subtypes','cmc','mc','price','editions','mvids')
-    def __init__(self, cmc, name, mc, rarity, types, subtypes, mvids, editions,colours,price):
-        self.cmc = cmc
+    def __init__(self, cmc, name, mc, rarity, types, subtypes, mvids, editions,colours,price,side=None):
+        self.cmc = byside(side,cmc)
         self.name = name
-        self.mc = mc if isinstance(mc, set) else { x for x in (mc or '').split(',') if x }
+        self.mc = byside(side,mc)
         self.rarity = rarity if isinstance(rarity, set) else {rarity or ''}
         self.types = types if isinstance(types, set) else set(types)
         self.subtypes = subtypes if isinstance(subtypes, set) else set(subtypes)
         self.mvids = mvids if isinstance(mvids, set) else { mvids or '' }
         self.editions = editions if isinstance(editions, set) else { editions or '' }
-        self.colours = colours if isinstance(colours, set) else { c for c in (colours or ()) if mc and c in mc }
+        self.colours = byside(side,colours)
         self.price = price or 100000.0
-
+                    
     def __getstate__(self):
         return [ getattr(self,k) for k in CardData.__slots__ ]
     def __setstate__(self, d):
@@ -58,38 +92,38 @@ class CardData(object):
                 return other + self
             elif other.name in self.name:
                 try:
-                    return CardData(max(self.cmc or 0, other.cmc or 0), 
+                    return CardData(addsides(self.cmc, other.cmc), 
                                     self.name, 
-                                    self.mc | other.mc,
+                                    addsides(self.mc,other.mc),
                                     self.rarity | other.rarity, 
                                     self.types | other.types,
                                     self.subtypes | other.subtypes,
                                     self.mvids | other.mvids,
                                     self.editions | other.editions,
-                                    self.colours | other.colours,
+                                    addsides(self.colours,other.colours),
                                     min(self.price,other.price)
                                     )
                 except ValueError,ve:
-                    sys.stderr.write(ve.message + '\n')
+                    sys.stderr.write(self.name + ': ' + ve.message + '\n')
                     return self
             else:
                 sys.stderr.write('Name differs: ' + str(self) + " " + str(other) + '\n')
                 return self
         else:
             try:
-                return CardData(one_or_equal(self, other, 'cmc'), 
+                return CardData(addsides(self.cmc, other.cmc), 
                                 self.name, 
-                                (self.mc or other.mc) if '//' in self.name else one_or_equal(self, other, 'mc'), 
+                                addsides(self.mc, other.mc), 
                                 self.rarity | other.rarity, 
                                 self.types | other.types,
                                 self.subtypes | other.subtypes,
                                 self.mvids | other.mvids,
                                 self.editions | other.editions,
-                                self.colours | other.colours,
+                                addsides(self.colours,other.colours),
                                 min(self.price,other.price)
                                 )
             except ValueError,ve:
-                sys.stderr.write(ve.message + '\n')
+	        sys.stderr.write(self.name + ': ' + ve.message + '\n')
                 return self
                 
     def as_dict(self):
@@ -98,6 +132,8 @@ class CardData(object):
         return tuple( self._colours2str() if k == 'colours' else set2str(getattr(self,k)) 
                       for k in CardData.__slots__ )
     def _colours2str(self):
+        if self.colours is None: 
+            sys.stderr.write(str(self))
         if len(self.colours) > 1:
             return 'MULTI'
         if not self.colours and 'Land' in self.types:
