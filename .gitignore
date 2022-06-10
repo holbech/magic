@@ -133,3 +133,9 @@ dmypy.json
 .project
 .pydevproject
 .settings/
+
+
+# IntelliJ
+
+.idea/
+*.iml
